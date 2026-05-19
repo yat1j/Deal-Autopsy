@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Deal Autopsy Agent</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; color: #e2e8f0; font-family: system-ui, sans-serif; }
+    :root {
+      --orange: #ff6b35; --purple: #7c3aed; --blue: #0ea5e9;
+      --green: #10b981; --red: #ef4444; --surface: #12121a;
+      --border: #1e1e2e; --muted: #64748b; --code: #0d0d14;
+    }
+    .app { display: flex; flex-direction: column; height: 100vh; }
+    .nav {
+      display: flex; align-items: center; gap: 0;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+    }
+    .nav-logo {
+      font-weight: 800; font-size: 16px; color: var(--orange);
+      margin-right: 32px; padding: 16px 0; white-space: nowrap;
+    }
+    .nav-tab {
+      padding: 16px 20px; cursor: pointer; font-size: 14px;
+      color: var(--muted); border-bottom: 2px solid transparent;
+      transition: all 0.15s; white-space: nowrap; border: none;
+      background: none; font-family: inherit;
+    }
+    .nav-tab.active { color: #e2e8f0; border-bottom-color: var(--orange); }
+    .nav-tab:hover { color: #e2e8f0; }
+    .main { flex: 1; overflow-y: auto; padding: 32px; }
+
+    /* Cards */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px; margin-bottom: 16px;
+    }
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+
+    /* Deal card */
+    .deal-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px;
+      border-left: 3px solid var(--orange);
+      transition: border-color 0.2s;
+    }
+    .deal-card:hover { border-left-color: var(--purple); }
+    .deal-company { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .deal-meta { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+    .deal-signals { display: flex; flex-wrap: wrap; gap: 6px; }
+    .signal-tag {
+      font-size: 11px; padding: 3px 8px; border-radius: 4px;
+      background: rgba(239,68,68,0.15); color: #fca5a5;
+      border: 1px solid rgba(239,68,68,0.3);
+    }
+    .risk-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 12px; padding: 4px 10px; border-radius: 20px;
+      font-weight: 600; margin-bottom: 10px;
+    }
+    .risk-high { background: rgba(239,68,68,0.2); color: #fca5a5; }
+    .risk-med  { background: rgba(245,158,11,0.2); color: #fcd34d; }
+    .risk-low  { background: rgba(16,185,129,0.2); color: #6ee7b7; }
+
+    /* Form */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: 0.5px; }
+    .form-group input, .form-group select {
+      background: var(--code); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 12px; color: #e2e8f0;
+      font-size: 14px; font-family: inherit; outline: none;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--orange); }
+
+    /* Buttons */
+    .btn {
+      padding: 12px 24px; border-radius: 6px; font-size: 14px;
+      font-weight: 600; cursor: pointer; border: none; transition: all 0.15s;
+      font-family: inherit;
+    }
+    .btn-primary { background: var(--orange); color: white; }
+    .btn-primary:hover { background: #e55a25; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Warning card */
+    .warning-card {
+      background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 10px; padding: 24px; margin-top: 24px;
+    }
+    .warning-card.low { background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.3); }
+    .warning-headline { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    .info-row { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start; }
+    .info-label { font-size: 11px; color: var(--muted); min-width: 120px; padding-top: 2px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+    .info-value { font-size: 14px; flex: 1; }
+    .email-box {
+      background: var(--code); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px; margin-top: 16px;
+    }
+    .email-subject { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--blue); }
+    .email-body { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* Routing display */
+    .routing-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px; background: var(--code);
+      border-radius: 8px; margin: 8px 0; font-size: 13px;
+    }
+    .route-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-cheap { background: var(--green); }
+    .dot-exp   { background: var(--purple); }
+    .dot-skip  { background: var(--muted); }
+    .route-cost { margin-left: auto; font-family: monospace; color: var(--green); font-size: 12px; }
+
+    /* Score circle */
+    .score-circle {
+      width: 80px; height: 80px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 800; flex-shrink: 0;
+      border: 3px solid;
+    }
+    .score-high { border-color: var(--red); color: var(--red); background: rgba(239,68,68,0.1); }
+    .score-med  { border-color: #f59e0b; color: #f59e0b; background: rgba(245,158,11,0.1); }
+    .score-low  { border-color: var(--green); color: var(--green); background: rgba(16,185,129,0.1); }
+
+    /* Audit table */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 14px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+    td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    tr:last-child td { border-bottom: none; }
+    .mono { font-family: monospace; }
+    .tag-cheap { color: var(--green); }
+    .tag-exp   { color: var(--purple); }
+
+    /* Stats bar */
+    .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .stat-val { font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+    .stat-lbl { font-size: 12px; color: var(--muted); }
+
+    /* Loading spinner */
+    .spinner {
+      width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: var(--orange); border-radius: 50%;
+      animation: spin 0.8s linear infinite; display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 60px; color: var(--muted); }
+    .empty-icon { font-size: 48px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+const API = "http://localhost:8000";
+
+// ── Helpers ─────────────────────────────────────────────
+const fmt = (n) => `$${(n/1000).toFixed(0)}k`;
+const riskColor = (s) => s >= 7 ? "high" : s >= 5 ? "med" : "low";
+
+// ── Screen 1: Deal Feed ──────────────────────────────────
+function DealFeed() {
+  const [deals, setDeals] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`${API}/api/deals`);
+      const d = await r.json();
+      setDeals(d.deals || []);
+    } catch(e) { console.error(e); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
+
+  if (loading) return (
+    <div className="empty"><div className="spinner"></div></div>
+  );
+
+  return (
+    <div>
+      <div style={{marginBottom:24}}>
+        <h2 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Lost Deal Feed</h2>
+        <p style={{color:"var(--muted)",fontSize:14}}>
+          {deals.length} deals in memory — Hindsight is learning from every loss.
+        </p>
+      </div>
+
+      {deals.length === 0 ? (
+        <div className="empty">
+          <div className="empty-icon">📭</div>
+          <p>No deals yet. Run seed.py to populate memory.</p>
+        </div>
+      ) : (
+        <div className="card-grid">
+          {[...deals].reverse().map(deal => (
+            <div key={deal.id} className="deal-card">
+              <div className="deal-company">{deal.company}</div>
+              <div className="deal-meta">
+                {fmt(deal.deal_size)} · {deal.industry} · Died: {deal.stage_died}
+              </div>
+              <div className={`risk-badge risk-${riskColor(deal.risk_score)}`}>
+                ⚠ {deal.risk_score} risk signal{deal.risk_score !== 1 ? "s" : ""}
+              </div>
+              <div className="deal-signals">
+                {(deal.signals || []).map((s,i) => (
+                  <span key={i} className="signal-tag">{s}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Screen 2: Live Deal Alert ────────────────────────────
+function LiveAlert() {
+  const [form, setForm] = useState({
+    company: "", deal_size: 45000, industry: "Financial Services",
+    company_size: "200-500", stakeholders: "VP Sales, CFO",
+    week_in_cycle: 2, pricing_discussed: false,
+  });
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const set = (k, v) => setForm(f => ({...f, [k]: v}));
+
+  const analyze = async () => {
+    if (!form.company) return alert("Enter a company name");
+    setLoading(true); setResult(null);
+    try {
+      const r = await fetch(`${API}/api/deals/analyze`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          ...form,
+          deal_size: parseInt(form.deal_size),
+          week_in_cycle: parseInt(form.week_in_cycle),
+          stakeholders: form.stakeholders.split(",").map(s => s.trim()),
+        })
+      });
+      setResult(await r.json());
+    } catch(e) { alert("Error: " + e.message); }
+    setLoading(false);
+  };
+
+  const score = result?.risk_score || 0;
+  const sc = riskColor(score);
+
+  return (
+    <div>
+      <div style={{marginBottom:24}}>
+        <h2 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Live Deal Analyzer</h2>
+        <p style={{color:"var(--muted)",fontSize:14}}>
+          Enter a live prospect. The agent checks it against all lost deals in memory.
+        </p>
+      </div>
+
+      <div className="card">
+        <div className="form-grid">
+          <div className="form-group" style={{gridColumn:"1/-1"}}>
+            <label>Company Name</label>
+            <input value={form.company} onChange={e => set("company",e.target.value)}
+                   placeholder="e.g. Apex Analytics" />
+          </div>
+          <div className="form-group">
+            <label>Deal Size ($)</label>
+            <input type="number" value={form.deal_size} onChange={e => set("deal_size",e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Industry</label>
+            <select value={form.industry} onChange={e => set("industry",e.target.value)}>
+              {["Financial Services","SaaS","Healthcare","Manufacturing","Retail","Professional Services"].map(i =>
+                <option key={i}>{i}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Week in Sales Cycle</label>
+            <input type="number" value={form.week_in_cycle} onChange={e => set("week_in_cycle",e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Stakeholders (comma separated)</label>
+            <input value={form.stakeholders} onChange={e => set("stakeholders",e.target.value)}
+                   placeholder="VP Sales, CFO, Legal" />
+          </div>
+          <div className="form-group">
+            <label>Pricing Discussed?</label>
+            <select value={form.pricing_discussed} onChange={e => set("pricing_discussed",e.target.value==="true")}>
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+        </div>
+        <div style={{marginTop:20}}>
+          <button className="btn btn-primary" onClick={analyze} disabled={loading}>
+            {loading ? <><span className="spinner" style={{marginRight:8}}/>Analyzing...</> : "⚡ Analyze Deal"}
+          </button>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="card" style={{marginTop:16}}>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div className="routing-row">
+              <div className="route-dot dot-cheap" style={{animation:"pulse 1s infinite"}}/>
+              <span>cascadeflow → routing to <strong>qwen3-32b</strong> for risk scoring...</span>
+              <span className="route-cost">~$0.001</span>
+            </div>
+            <div className="routing-row" style={{opacity:0.4}}>
+              <div className="route-dot dot-exp"/>
+              <span>Hindsight → recalling similar lost deals...</span>
+            </div>
+            <div className="routing-row" style={{opacity:0.4}}>
+              <div className="route-dot dot-exp"/>
+              <span>cascadeflow → escalating to <strong>llama-3.3-70b</strong> for warning...</span>
+              <span className="route-cost">~$0.038</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {result && (
+        <div>
+          <div style={{display:"flex",gap:20,alignItems:"center",margin:"24px 0 16px"}}>
+            <div className={`score-circle score-${sc}`}>{score}<span style={{fontSize:14}}>/9</span></div>
+            <div>
+              <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>
+                {score >= 7 ? "🚨 High Risk" : score >= 5 ? "⚠️ Medium Risk" : "✅ Low Risk"}
+              </div>
+              <div style={{fontSize:13,color:"var(--muted)"}}>
+                Matched against <strong style={{color:"#e2e8f0"}}>{result.similar_deals_count}</strong> similar lost deals in Hindsight memory
+              </div>
+            </div>
+          </div>
+
+          <div className="routing-row" style={{marginBottom:8}}>
+            <div className="route-dot dot-cheap"/>
+            <span>Risk scoring: <strong>{result.routing?.risk_model}</strong></span>
+            <span className="route-cost">{result.cost_breakdown?.risk_check}</span>
+          </div>
+          <div className="routing-row" style={{marginBottom:16}}>
+            <div className={`route-dot ${result.routing?.escalated ? "dot-exp" : "dot-skip"}`}/>
+            <span>Warning gen: <strong>{result.routing?.warning_model}</strong></span>
+            <span className="route-cost">{result.routing?.escalated ? result.cost_breakdown?.warning_gen : "$0.000"}</span>
+          </div>
+
+          {result.matched_signals?.length > 0 && (
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:12,color:"var(--muted)",marginBottom:8,fontWeight:600,letterSpacing:"0.5px",textTransform:"uppercase"}}>Risk Signals Matched</div>
+              <div className="deal-signals">
+                {result.matched_signals.map((s,i) => <span key={i} className="signal-tag">{s}</span>)}
+              </div>
+            </div>
+          )}
+
+          {result.warning && (
+            <div className={`warning-card ${score < 5 ? "low" : ""}`}>
+              <div className="warning-headline">{result.warning.headline}</div>
+              <div className="info-row">
+                <span className="info-label">Key Risk</span>
+                <span className="info-value">{result.warning.key_risk}</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">From Memory</span>
+                <span className="info-value" style={{color:"var(--muted)"}}>{result.warning.historical_context}</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">Action Now</span>
+                <span className="info-value" style={{color:"var(--green)"}}>{result.warning.recommended_action}</span>
+              </div>
+              {result.warning.email_subject && (
+                <div className="email-box">
+                  <div className="email-subject">Subject: {result.warning.email_subject}</div>
+                  <div className="email-body">{result.warning.email_body}</div>
+                </div>
+              )}
+              <div style={{marginTop:16,fontSize:12,color:"var(--muted)"}}>
+                Total cost for this analysis: <strong style={{color:"var(--green)"}}>{result.cost_breakdown?.total}</strong>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Screen 3: Audit Trail ────────────────────────────────
+function AuditTrail() {
+  const [data, setData] = useState({entries:[], total_cost:0, total_queries:0});
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`${API}/api/audit`);
+      setData(await r.json());
+    } catch(e) {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); const t = setInterval(load, 3000); return () => clearInterval(t); }, []);
+
+  const entries = [...(data.entries || [])].reverse();
+
+  return (
+    <div>
+      <div style={{marginBottom:24}}>
+        <h2 style={{fontSize:22,fontWeight:800,marginBottom:4}}>cascadeflow Audit Trail</h2>
+        <p style={{color:"var(--muted)",fontSize:14}}>Every AI routing decision — model, cost, latency. This is what production looks like.</p>
+      </div>
+
+      <div className="stats-bar">
+        <div className="stat-box">
+          <div className="stat-val" style={{color:"var(--orange)"}}>{data.total_queries}</div>
+          <div className="stat-lbl">Total API Calls</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-val" style={{color:"var(--green)"}}>${data.total_cost?.toFixed(3)}</div>
+          <div className="stat-lbl">Total Spend</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-val" style={{color:"var(--purple)"}}>
+            {entries.filter(e => e.model?.includes("70b")).length}
+          </div>
+          <div className="stat-lbl">Expensive Calls</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-val" style={{color:"var(--blue)"}}>
+            {entries.length > 0 ?
+              Math.round(entries.reduce((a,e) => a + (e.latency_ms||0), 0) / entries.length) : 0}ms
+          </div>
+          <div className="stat-lbl">Avg Latency</div>
+        </div>
+      </div>
+
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        {loading ? (
+          <div className="empty"><span className="spinner"/></div>
+        ) : entries.length === 0 ? (
+          <div className="empty">
+            <div className="empty-icon">📊</div>
+            <p>No audit entries yet. Run seed.py or analyze a deal.</p>
+          </div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th><th>Task</th><th>Model</th>
+                <th>Tokens</th><th>Cost</th><th>Latency</th><th>Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map(e => (
+                <tr key={e.id}>
+                  <td className="mono" style={{color:"var(--muted)"}}>{e.timestamp}</td>
+                  <td>{e.task}</td>
+                  <td className={`mono ${e.model?.includes("70b") ? "tag-exp" : "tag-cheap"}`}>
+                    {e.model?.includes("70b") ? "⬆ " : "⬇ "}{e.model}
+                  </td>
+                  <td className="mono">{e.tokens}</td>
+                  <td className="mono" style={{color:"var(--green)"}}>${e.cost?.toFixed(5)}</td>
+                  <td className="mono">{e.latency_ms}ms</td>
+                  <td style={{color:"var(--muted)",fontSize:12}}>{e.outcome}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── App Shell ────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState(0);
+  const tabs = ["📂 Lost Deal Feed", "⚡ Live Alert", "📊 Audit Trail"];
+  const screens = [<DealFeed/>, <LiveAlert/>, <AuditTrail/>];
+
+  return (
+    <div className="app">
+      <nav className="nav">
+        <div className="nav-logo">☠ Deal Autopsy</div>
+        {tabs.map((t,i) => (
+          <button key={i} className={`nav-tab ${tab===i?"active":""}`}
+                  onClick={() => setTab(i)}>{t}</button>
+        ))}
+      </nav>
+      <div className="main">{screens[tab]}</div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
